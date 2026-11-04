@@ -298,7 +298,7 @@ const CooperativeDetails = () => {
             IDENTITE
         ----------------------------------------------------- */}
 
-        <div className="bg-gray-50 dark:bg-slate-850 px-6 py-6 border-b border-gray-200 dark:border-slate-800">
+        <div className="bg-gray-50 dark:bg-slate-800/60 px-6 py-6 border-b border-gray-200 dark:border-slate-800">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-emerald-950/70 text-xl font-bold text-green-700 dark:text-emerald-400">
@@ -501,7 +501,7 @@ const CropCard = ({
   value,
 }) => {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-850 p-4">
+    <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
         {label}
       </p>

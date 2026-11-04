@@ -5,6 +5,7 @@ import {
   registerUser,
   getCurrentUser,
   logoutUser,
+  verifyUserEmail,
 } from "../services/authService";
 
 const AuthContext = createContext(null);
@@ -80,6 +81,14 @@ export const AuthProvider = ({ children }) => {
     return await registerUser(data);
   };
 
+  const verifyEmail = async (data) => {
+    const result = await verifyUserEmail(data);
+    if (result.user) {
+      setUser(result.user);
+    }
+    return result;
+  };
+
   const logout = async () => {
     try {
       await logoutUser();
@@ -94,6 +103,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
+    verifyEmail,
     logout,
     isAuthenticated: !!user,
   };

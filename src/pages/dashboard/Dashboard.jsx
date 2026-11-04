@@ -232,13 +232,13 @@ const SemiCircleGauge = ({ value = 0, label = "Taux de conformité" }) => {
         </svg>
 
         <div className="absolute bottom-1 text-center">
-          <span className="text-3xl font-black text-gray-900 tracking-tight">
+          <span className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
             {percentage}%
           </span>
         </div>
       </div>
 
-      <span className="mt-2 text-xs font-semibold text-gray-600">{label}</span>
+      <span className="mt-2 text-xs font-semibold text-gray-600 dark:text-slate-300">{label}</span>
       <span
         className={`mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeBg}`}
       >
@@ -542,9 +542,9 @@ const Dashboard = () => {
   }, [summary]);
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 sm:p-6 lg:p-1">
+    <div className="min-h-screen bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 p-4 sm:p-6 lg:p-1">
       {/* 1. Bandeau supérieur d'accueil avec fond image clair & Actions d'export */}
-      <section className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200/80 p-6 shadow-sm sm:p-8">
+      <section className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm sm:p-8">
         {/* Image de fond claire */}
         <img
           src={bannerImg}
@@ -743,9 +743,9 @@ const Dashboard = () => {
 
       {/* Message d'erreur avec bouton de réessai */}
       {error && (
-        <div className="mb-6 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0" />
             <span>{error}</span>
           </div>
           <button
@@ -1705,7 +1705,7 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-850 overflow-hidden relative shadow-inner">
+                <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900 overflow-hidden relative shadow-inner">
                   {/* Carte Leaflet interactive */}
                   <div className="h-[280px] w-full">
                     <MapContainer

@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Lock, Eye, EyeOff } from "lucide-react";
+import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { updateUserProfile } from "../../services/authService";
 
@@ -13,15 +15,16 @@ const Profile = () => {
   const [role, setRole] = useState("");
 
   // Mot de passe
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // États d'envoi et alertes
+  // États d'envoi
   const [savingInfo, setSavingInfo] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(null);
-  const [errorMessage, setErrorMessage] = useState(null);
 
   const roleLabels = {
     admin: "Administrateur",
@@ -66,11 +69,15 @@ const Profile = () => {
   // Sauvegarde des informations personnelles
   const handleSaveInfo = async (e) => {
     e.preventDefault();
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     if (!firstName.trim() || !lastName.trim()) {
-      setErrorMessage("Le prénom et le nom sont obligatoires.");
+      toast.error("Le prénom et le nom sont obligatoires.");
+      return;
+    }
+
+    const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+    if (cleanPhone && cleanPhone.length !== 10) {
+      toast.error("Le numéro de téléphone doit comporter exactement 10 chiffres (format : 03XXXXXXXX).");
       return;
     }
 
@@ -79,7 +86,7 @@ const Profile = () => {
       const res = await updateUserProfile({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        phone: phone.trim() || null,
+        phone: cleanPhone || null,
       });
 
       if (res.user) {
@@ -92,11 +99,10 @@ const Profile = () => {
         }));
       }
 
-      setSuccessMessage("Vos informations personnelles ont été mises à jour avec succès !");
-      setTimeout(() => setSuccessMessage(null), 5000);
+      toast.success("Vos informations personnelles ont été mises à jour avec succès !");
     } catch (err) {
       console.error("❌ Erreur mise à jour profil :", err);
-      setErrorMessage(
+      toast.error(
         err.response?.data?.error ||
         "Impossible d'enregistrer les modifications de profil."
       );
@@ -108,36 +114,57 @@ const Profile = () => {
   // Mise à jour du mot de passe
   const handleSavePassword = async (e) => {
     e.preventDefault();
-    setSuccessMessage(null);
-    setErrorMessage(null);
+
+    if (!currentPassword) {
+      toast.error("Veuillez saisir votre mot de passe actuel.");
+      return;
+    }
 
     if (!newPassword || newPassword.length < 6) {
-      setErrorMessage("Le mot de passe doit comporter au moins 6 caractères.");
+      toast.error("Le nouveau mot de passe doit comporter au moins 6 caractères.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setErrorMessage("Les deux mots de passe ne correspondent pas.");
+      toast.error("Les deux nouveaux mots de passe ne correspondent pas.");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error("Le nouveau mot de passe doit être différent de votre mot de passe actuel.");
       return;
     }
 
     try {
       setSavingPassword(true);
-      await updateUserProfile({
+      const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+      const res = await updateUserProfile({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        phone: phone.trim() || null,
+        phone: cleanPhone || null,
+        current_password: currentPassword,
         password: newPassword,
       });
 
+      if (res?.access_token) {
+        localStorage.setItem("access_token", res.access_token);
+      }
+      if (res?.refresh_token) {
+        localStorage.setItem("refresh_token", res.refresh_token);
+      }
+      if (res?.user) {
+        setUser((prev) => ({ ...prev, ...res.user }));
+      }
+
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setSuccessMessage("Votre mot de passe a été modifié avec succès !");
-      setTimeout(() => setSuccessMessage(null), 5000);
+      toast.success("Votre mot de passe a été modifié avec succès !");
     } catch (err) {
       console.error("❌ Erreur modification mot de passe :", err);
-      setErrorMessage(
+      toast.error(
         err.response?.data?.error ||
+        err.response?.data?.message ||
         "Impossible de modifier le mot de passe."
       );
     } finally {
@@ -149,19 +176,6 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gray-50/50 dark:bg-slate-950 p-4 sm:p-6 lg:p-1">
-      {/* Messages d'alerte */}
-      {successMessage && (
-        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-sm font-semibold text-emerald-800 dark:text-emerald-300 shadow-sm">
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 p-4 text-sm font-semibold text-red-700 dark:text-red-300 shadow-sm">
-          <span>❌</span>
-          <span>{errorMessage}</span>
-        </div>
-      )}
 
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Colonne gauche : Carte récapitulative du profil */}
@@ -263,20 +277,33 @@ const Profile = () => {
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <label
-                    htmlFor="phoneInput"
-                    className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-300"
-                  >
-                    Numéro de téléphone
-                  </label>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label
+                      htmlFor="phoneInput"
+                      className="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-300"
+                    >
+                      Numéro de téléphone
+                    </label>
+                    <span className="text-[11px] font-mono text-gray-400 dark:text-slate-500">
+                      {phone ? `${phone.length}/10` : "Format 03XXXXXXXX"}
+                    </span>
+                  </div>
                   <input
                     id="phoneInput"
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 dark:text-white px-4 py-2.5 text-sm transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
-                    placeholder="Ex: +261 34 00 000 00"
+                    onChange={(e) => {
+                      const onlyDigits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      setPhone(onlyDigits);
+                    }}
+                    className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 dark:text-white px-4 py-2.5 text-sm transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none font-mono"
+                    placeholder="034XXXXXXX"
                   />
+                  <p className="mt-1 text-[11px] text-gray-400 dark:text-slate-500">
+                    Chiffres uniquement, 10 caractères (ex: 0341234567).
+                  </p>
                 </div>
 
                 <div>
@@ -324,13 +351,52 @@ const Profile = () => {
           {/* 2. Sécurité & Changement de mot de passe */}
           <div className="rounded-3xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <span>Changer de mot de passe</span>
             </h2>
             <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-              Pour renforcer la sécurité de votre compte, choisissez un mot de passe robuste d'au moins 6 caractères.
+              Veuillez confirmer votre mot de passe actuel avant de définir votre nouveau mot de passe (au moins 6 caractères).
             </p>
 
-            <form onSubmit={handleSavePassword} className="mt-6 space-y-5">
+            <form onSubmit={handleSavePassword} className="mt-6 space-y-5" autoComplete="off">
+              {/* Pièges anti-remplissage automatique des navigateurs */}
+              <input type="text" name="prevent_autofill_user" className="hidden" tabIndex="-1" autoComplete="off" />
+              <input type="password" name="prevent_autofill_pwd" className="hidden" tabIndex="-1" autoComplete="off" />
+
+              {/* Mot de passe actuel (Saisie manuelle obligatoire) */}
+              <div>
+                <label
+                  htmlFor="current_auth_password_manual"
+                  className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-300"
+                >
+                  Mot de passe actuel *
+                </label>
+                <div className="relative">
+                  <input
+                    id="current_auth_password_manual"
+                    name="manual_current_password"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white px-4 py-2.5 text-sm pr-11 transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+                    placeholder="Saisissez votre mot de passe actuel"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                    title={showCurrentPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <span className="mt-1 block text-[11px] text-gray-400 dark:text-slate-500">
+                  Par mesure de sécurité, vous devez saisir manuellement votre mot de passe actuel.
+                </span>
+              </div>
+
+              {/* Nouveau mot de passe & Confirmation */}
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
                   <label
@@ -342,18 +408,20 @@ const Profile = () => {
                   <div className="relative">
                     <input
                       id="newPasswordInput"
-                      type={showPassword ? "text" : "password"}
+                      type={showNewPassword ? "text" : "password"}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 dark:text-white px-4 py-2.5 text-sm pr-10 transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
-                      placeholder="••••••••"
+                      className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white px-4 py-2.5 text-sm pr-11 transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+                      placeholder="Minimum 6 caractères"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 text-xs"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                      title={showNewPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     >
-                      {showPassword ? "Masquer" : "Afficher"}
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -363,23 +431,34 @@ const Profile = () => {
                     htmlFor="confirmPasswordInput"
                     className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-slate-300"
                   >
-                    Confirmer le mot de passe *
+                    Confirmer le nouveau mot de passe *
                   </label>
-                  <input
-                    id="confirmPasswordInput"
-                    type={showPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 dark:text-white px-4 py-2.5 text-sm transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      id="confirmPasswordInput"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white px-4 py-2.5 text-sm pr-11 transition focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+                      placeholder="Répétez le nouveau mot de passe"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                      title={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="flex justify-end pt-3">
                 <button
                   type="submit"
-                  disabled={savingPassword || !newPassword}
+                  disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
                   className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-40"
                 >
                   {savingPassword ? (

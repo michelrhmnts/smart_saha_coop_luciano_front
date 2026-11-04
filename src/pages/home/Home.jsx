@@ -563,7 +563,7 @@ const Home = () => {
                     </div>
 
                     {/* Dynamic Simulated Preview */}
-                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs mb-4">
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/90 shadow-xs mb-4">
                       {interactiveFeatures[activeTab].previewContent}
                     </div>
 

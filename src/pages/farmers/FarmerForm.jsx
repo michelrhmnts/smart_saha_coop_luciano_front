@@ -232,12 +232,12 @@ function FarmerForm() {
       return;
     }
 
-    // Téléphone : chiffres et éventuellement préfixe '+'
+    // Téléphone : uniquement des chiffres, 10 chiffres max
     if (name === "phone") {
-      const cleaned = value.replace(/[^\d+]/g, "").slice(0, 13);
+      const onlyDigits = value.replace(/\D/g, "").slice(0, 10);
       setForm((previous) => ({
         ...previous,
-        [name]: cleaned,
+        [name]: onlyDigits,
       }));
       return;
     }
@@ -323,6 +323,13 @@ function FarmerForm() {
     const household = Number(form.household_number);
     if (!Number.isInteger(household) || household < 1) {
       toast.error("Le nombre de personnes dans le ménage doit être un nombre supérieur ou égal à 1.");
+      return false;
+    }
+
+    // --- Validation Téléphone (10 chiffres exactement si renseigné) ---
+    const phoneStr = String(form.phone || "").replace(/\D/g, "");
+    if (phoneStr && phoneStr.length !== 10) {
+      toast.error("Le numéro de téléphone doit comporter exactement 10 chiffres (format : 03XXXXXXXX).");
       return false;
     }
 

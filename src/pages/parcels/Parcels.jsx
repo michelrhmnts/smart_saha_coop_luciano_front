@@ -679,7 +679,7 @@ function Parcels() {
                 FOOTER & PAGINATION
             ================================================== */}
 
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-850 dark:bg-slate-900/60 px-6 py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/60 px-6 py-4">
                             {/* Informations de comptage à gauche */}
                             <div className="flex flex-wrap items-center gap-3">
                                 <p className="text-sm text-gray-500 dark:text-slate-400">

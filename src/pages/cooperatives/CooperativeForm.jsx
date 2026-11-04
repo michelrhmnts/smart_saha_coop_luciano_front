@@ -678,7 +678,7 @@ const CooperativeForm = () => {
             ACTIONS
         ----------------------------------------------------- */}
 
-        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-850/80 px-6 py-5 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/80 px-6 py-5 sm:flex-row sm:justify-end">
           <button
             type="button"
             disabled={saving}

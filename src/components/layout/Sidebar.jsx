@@ -513,7 +513,7 @@ const Sidebar = ({
           ) : (
             /* Mode déplié : Card utilisateur complète avec initiales comme dans l'image */
             <>
-              <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-850 dark:bg-slate-800/60 shadow-xs">
+              <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/60 shadow-xs">
                 <button
                   type="button"
                   onClick={() => handleNavigate("/profile")}

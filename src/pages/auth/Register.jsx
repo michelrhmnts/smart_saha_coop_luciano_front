@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+import { resendUserVerificationCode } from "../../services/authService";
 import {
   User,
   Mail,
@@ -14,20 +15,33 @@ import {
   CheckCircle2,
   Loader2,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
   Satellite,
   FileCheck2,
   Sparkles,
   Sun,
   Moon,
+  KeyRound,
+  RefreshCw,
+  Edit3,
 } from "lucide-react";
 import logoImg from "../../assets/logo.png";
 import bgHeroImg from "../../assets/login-bg.jpg";
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, verifyEmail } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+
+  const OTP_LENGTH = 6;
+  const [step, setStep] = useState("form"); // "form" | "verify"
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(""));
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const inputRefs = useRef([]);
 
   const [formData, setFormData] = useState({
     first_name: "",
@@ -42,6 +56,17 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Compte à rebours pour le renvoi d'OTP
+  useEffect(() => {
+    let timer;
+    if (step === "verify" && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [step, countdown]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -60,6 +85,113 @@ const Register = () => {
       ...previous,
       [name]: value,
     }));
+  };
+
+  const handleOtpChange = (index, value) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const newOtp = [...otp];
+    newOtp[index] = digit;
+    setOtp(newOtp);
+    if (error) setError("");
+
+    if (digit && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Si tous les chiffres sont saisis, valider automatiquement
+    if (digit && index === OTP_LENGTH - 1 && newOtp.every((d) => d !== "")) {
+      handleVerifyOtp(newOtp.join(""));
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, OTP_LENGTH);
+    if (!pasted) return;
+
+    const newOtp = pasted.split("");
+    while (newOtp.length < OTP_LENGTH) newOtp.push("");
+    setOtp(newOtp);
+    if (error) setError("");
+
+    if (pasted.length === OTP_LENGTH) {
+      handleVerifyOtp(pasted);
+    } else {
+      inputRefs.current[pasted.length]?.focus();
+    }
+  };
+
+  const handleVerifyOtp = async (codeOverride) => {
+    const code = codeOverride || otp.join("");
+    if (code.length < OTP_LENGTH) {
+      const msg = `Veuillez saisir les ${OTP_LENGTH} chiffres du code.`;
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setOtpLoading(true);
+    setError("");
+
+    try {
+      const res = await verifyEmail({
+        email: verificationEmail,
+        token: code,
+      });
+
+      toast.success(
+        res.message || "Votre adresse e-mail a été confirmée avec succès !"
+      );
+
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Erreur validation OTP :", err);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Code de validation incorrect ou expiré.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (countdown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setError("");
+
+    try {
+      const res = await resendUserVerificationCode(verificationEmail);
+      toast.success(
+        res.message || "Un nouveau code a été envoyé à votre adresse e-mail."
+      );
+      setCountdown(60);
+      setOtp(Array(OTP_LENGTH).fill(""));
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 50);
+    } catch (err) {
+      console.error("Erreur renvoi OTP :", err);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Impossible de renvoyer le code. Veuillez patienter.";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -102,37 +234,35 @@ const Register = () => {
     try {
       setLoading(true);
 
+      const targetEmail = formData.email.trim().toLowerCase();
+
       const result = await register({
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         phone: formData.phone.trim(),
-        email: formData.email.trim(),
+        email: targetEmail,
         password: formData.password,
       });
 
-      // Le backend renvoie { message: "Utilisateur créé avec succès", user: ... }
+      // Le backend renvoie { message: "...", user: ..., requires_verification: True }
       if (
         result.user ||
-        result.message === "Utilisateur créé avec succès" ||
+        result.requires_verification ||
+        result.message ||
         result.success
       ) {
-        // Vider les champs du formulaire
-        setFormData({
-          first_name: "",
-          last_name: "",
-          phone: "",
-          email: "",
-          password: "",
-          confirm_password: "",
-        });
+        setVerificationEmail(targetEmail);
+        setStep("verify");
+        setCountdown(60);
+        setOtp(["", "", "", "", "", ""]);
 
-        // Afficher le message de succès dans un toast
         const successMsg =
-          result.message || "Utilisateur créé avec succès";
+          result.message || "Compte créé ! Veuillez saisir le code reçu par e-mail.";
         toast.success(successMsg);
 
-        // Redirection vers la page de connexion
-        navigate("/login");
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 100);
       } else {
         const errorMsg =
           result.error ||
@@ -300,32 +430,155 @@ const Register = () => {
           </div>
 
           {/* Carte Principale d'Inscription */}
-          <div className="relative rounded-3xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-7 sm:p-9 shadow-2xl shadow-teal-950/10 dark:shadow-black/40 border border-teal-100/80 dark:border-slate-800 transition-all duration-300 hover:shadow-teal-900/15">
-            {/* Décoration d'angle douce */}
-            <div className="absolute top-0 right-0 h-32 w-32 bg-gradient-to-bl from-teal-500/10 via-emerald-500/5 to-transparent dark:from-emerald-500/10 rounded-tr-3xl pointer-events-none" />
+          <div className="relative rounded-3xl bg-white dark:bg-slate-900/95 backdrop-blur-xl p-7 sm:p-9 shadow-2xl shadow-teal-950/10 dark:shadow-black/40 border border-slate-200/80 dark:border-slate-800 transition-all duration-300 hover:shadow-teal-900/15 overflow-hidden">
+            {/* Lueur d'ambiance fluide */}
+            <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 blur-3xl pointer-events-none" />
 
-            {/* Titre & Lien Accueil */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <div>
+            {step === "verify" ? (
+              /* ========================================================= */
+              /* VUE 2 : VALIDATION DU CODE OTP A 6 CHIFFRES               */
+              /* ========================================================= */
+              <div className="relative z-10 py-2">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80 shadow-inner">
+                    <KeyRound className="h-7 w-7" />
+                  </div>
                   <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                    Créer un compte
+                    Vérifiez votre e-mail
                   </h2>
+                  <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Un code de confirmation à 6 chiffres a été envoyé à l'adresse :
+                  </p>
+                  <p className="mt-1 font-semibold text-emerald-700 dark:text-emerald-400 text-sm break-all">
+                    {verificationEmail}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+
+                {/* Alerte d'Erreur */}
+                {error && (
+                  <div
+                    className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/90 dark:bg-red-950/30 p-3.5 text-sm text-red-700 dark:text-red-300 shadow-sm animate-in fade-in duration-200"
+                    role="alert"
+                  >
+                    <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{error}</span>
+                  </div>
+                )}
+
+                {/* Grille de saisie des 6 chiffres */}
+                <div className="flex justify-center items-center gap-2 sm:gap-3 my-6">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => (inputRefs.current[index] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
+                      disabled={otpLoading}
+                      className="w-10 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all shadow-xs disabled:opacity-50"
+                    />
+                  ))}
+                </div>
+
+                {/* Bouton de Validation */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleVerifyOtp()}
+                    disabled={otpLoading || otp.some((d) => d === "")}
+                    className="group relative w-full cursor-pointer overflow-hidden rounded-xl bg-gradient-to-r from-[#0c6b75] via-[#057a55] to-[#15803d] p-[1px] font-semibold text-white shadow-lg shadow-teal-900/20 transition-all duration-200 hover:shadow-xl hover:shadow-teal-900/30 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex h-full w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-[#0b646d] via-[#057a55] to-[#15803d] px-4 py-3 text-sm font-semibold text-white transition-all duration-200 group-hover:bg-opacity-90">
+                      {otpLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                          <span>Vérification en cours...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Valider et activer mon compte</span>
+                          <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                        </>
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Actions secondaires : Renvoyer le code & Modifier l'email */}
+                <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={countdown > 0 || resendLoading}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${resendLoading ? "animate-spin" : ""}`} />
+                      <span>
+                        {countdown > 0
+                          ? `Renvoyer un nouveau code (${countdown}s)`
+                          : "Renvoyer un nouveau code"}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("form");
+                        setError("");
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Modifier l'adresse e-mail</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ========================================================= */
+              /* VUE 1 : FORMULAIRE D'INSCRIPTION STANDARD                 */
+              /* ========================================================= */
+              <>
+                {/* Titre & Boutons d'action */}
+                <div className="mb-6 relative z-10">
+                  <div className="flex items-start justify-between gap-3 sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                        Créer un compte
+                      </h2>
+                    </div>
+
+                <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                  {/* Bouton Mode Sombre / Clair */}
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    title={isDark ? "Mode clair" : "Mode sombre"}
-                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    aria-label={isDark ? "Passer en mode clair" : "Passer en mode sombre"}
+                    title={isDark ? "Passer en mode clair" : "Passer en mode sombre"}
+                    className="group relative flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-slate-200/90 dark:border-slate-700/80 bg-slate-50/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-750 hover:border-emerald-400/60 dark:hover:border-emerald-500/50 hover:shadow-xs transition-all duration-200 cursor-pointer"
                   >
-                    {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                    {isDark ? (
+                      <Sun className="w-4 h-4 text-amber-400 transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300 transition-transform duration-300 group-hover:-rotate-12 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:scale-110" />
+                    )}
                   </button>
+
+                  {/* Bouton Revenir à l'accueil */}
                   <Link
                     to="/"
-                    className="text-xs text-slate-500 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 font-medium inline-flex items-center gap-1 transition-colors bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700"
+                    title="Revenir à la page d'accueil"
+                    className="group inline-flex items-center gap-1.5 h-9.5 px-3.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-750 hover:text-emerald-700 dark:hover:text-emerald-400 border border-slate-200/90 dark:border-slate-700/80 hover:border-emerald-400/60 dark:hover:border-emerald-500/50 hover:shadow-xs transition-all duration-200 cursor-pointer"
                   >
-                    ← Accueil
+                    <ArrowLeft className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 transition-transform duration-200 group-hover:-translate-x-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
+                    <span>Accueil</span>
                   </Link>
                 </div>
               </div>
@@ -582,7 +835,9 @@ const Register = () => {
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-          </div>
+          </>
+        )}
+      </div>
 
           {/* Footer en bas */}
           <div className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">

@@ -8,7 +8,7 @@ function App() {
       <AppRoutes />
 
       <Toaster
-        position="bottom-right"
+        position="top-right"
         reverseOrder={false}
         toastOptions={{
           duration: 4000,
